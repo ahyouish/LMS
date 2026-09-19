@@ -1367,7 +1367,7 @@ export default function CollegeLibraryApp() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="badge badge-available">
-                            {book.copies.filter(c => c.status === 'available').length} of {book.copies.length} Available
+                            {(Array.isArray(book?.copies) ? book.copies : []).filter(c => c?.status === 'available').length} of {(Array.isArray(book?.copies) ? book.copies : []).length} Available
                           </span>
                           <button
                             className="btn btn-outline-danger py-1 px-2.5 text-xs"
@@ -1380,7 +1380,7 @@ export default function CollegeLibraryApp() {
                       </div>
 
                       <div className="copies-tags">
-                        {book.copies.map(copy => (
+                        {(Array.isArray(book?.copies) ? book.copies : []).map(copy => (
                           <div key={copy.accession_no} className={`copy-tag badge-${copy.status}`}>
                             <span>{copy.accession_no}</span>
                             <span className="opacity-75 text-[11px]">({copy.status})</span>
@@ -1871,7 +1871,8 @@ export default function CollegeLibraryApp() {
               ) : (
                 <div className="space-y-4">
                   {filteredCatalog.map(book => {
-                    const availableCount = book.copies.filter(c => c.status === 'available').length;
+                    const copiesList = Array.isArray(book?.copies) ? book.copies : [];
+                    const availableCount = copiesList.filter(c => c?.status === 'available').length;
                     return (
                       <div key={book.book_id} className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex justify-between items-center flex-wrap gap-3">
                         <div>
@@ -1885,7 +1886,7 @@ export default function CollegeLibraryApp() {
                         <div>
                           {availableCount > 0 ? (
                             <span className="badge badge-available text-sm py-1 px-3">
-                              ✓ {availableCount} of {book.copies.length} Copies Available
+                              ✓ {availableCount} of {copiesList.length} Copies Available
                             </span>
                           ) : (
                             <span className="badge badge-overdue text-sm py-1 px-3">
