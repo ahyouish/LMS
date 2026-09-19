@@ -136,7 +136,7 @@ export default function CollegeLibraryApp() {
   const [adminTab, setAdminTab] = useState<'circulation' | 'add-book' | 'register-student' | 'catalog' | 'members' | 'overdue' | 'fines'>('circulation');
   
   // Student Navigation Tab
-  const [studentTab, setStudentTab] = useState<'my-loans' | 'my-fines' | 'catalog'>('my-loans');
+  const [studentTab, setStudentTab] = useState<'my-loans' | 'history' | 'catalog'>('my-loans');
 
   // Shared Data states
   const [summary, setSummary] = useState<any>({ totalBooks: 0, totalCopies: 0, activeLoans: 0, overdueCount: 0, totalUnpaidFines: 0 });
@@ -214,12 +214,12 @@ export default function CollegeLibraryApp() {
         fetch('/api/analytics/fines').then(r => r.json()),
       ]);
 
-      if (sumRes.success) setSummary(sumRes.data);
-      if (catRes.success) setCatalog(catRes.data);
-      if (memRes.success) setMembers(memRes.data);
-      if (actRes.success) setActiveLoans(actRes.data);
-      if (ovdRes.success) setOverdueLoans(ovdRes.data);
-      if (finRes.success) setStudentFines(finRes.data);
+      if (sumRes.success && sumRes.data) setSummary(sumRes.data);
+      if (catRes.success && Array.isArray(catRes.data)) setCatalog(catRes.data);
+      if (memRes.success && Array.isArray(memRes.data)) setMembers(memRes.data);
+      if (actRes.success && Array.isArray(actRes.data)) setActiveLoans(actRes.data);
+      if (ovdRes.success && Array.isArray(ovdRes.data)) setOverdueLoans(ovdRes.data);
+      if (finRes.success && Array.isArray(finRes.data)) setStudentFines(finRes.data);
     } catch (err) {
       console.error('Failed to load admin data', err);
     } finally {
@@ -236,8 +236,8 @@ export default function CollegeLibraryApp() {
         fetch('/api/catalog').then(r => r.json())
       ]);
 
-      if (dashRes.success) setStudentDashboard(dashRes.data);
-      if (catRes.success) setCatalog(catRes.data);
+      if (dashRes.success && dashRes.data) setStudentDashboard(dashRes.data);
+      if (catRes.success && Array.isArray(catRes.data)) setCatalog(catRes.data);
     } catch (err) {
       console.error('Failed to load student data', err);
     } finally {
@@ -507,23 +507,24 @@ export default function CollegeLibraryApp() {
   };
 
   // Available copies list for dropdown
-  const availableCopies = catalog.flatMap(b => 
-    b.copies.filter(c => c.status === 'available').map(c => ({
+  const availableCopies = (Array.isArray(catalog) ? catalog : []).flatMap(b => 
+    (Array.isArray(b?.copies) ? b.copies : []).filter(c => c?.status === 'available').map(c => ({
       accession_no: c.accession_no,
-      title: b.title,
-      department: b.department
+      title: b?.title || '',
+      department: b?.department || ''
     }))
   );
 
   const departments = ['All', ...ACADEMIC_DEPARTMENTS];
 
-  const filteredCatalog = catalog.filter(b => {
+  const filteredCatalog = (Array.isArray(catalog) ? catalog : []).filter(b => {
+    if (!b) return false;
     const matchesDept = deptFilter === 'All' || b.department === deptFilter;
     const matchesQuery = 
-      b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.isbn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.copies.some(c => c.accession_no.toLowerCase().includes(searchQuery.toLowerCase()));
+      (b.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (b.author || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (b.isbn || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (Array.isArray(b.copies) ? b.copies : []).some(c => (c?.accession_no || '').toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesDept && matchesQuery;
   });
 
@@ -1628,7 +1629,7 @@ export default function CollegeLibraryApp() {
       {/* ====================================================================
           ROLE B: STUDENT PORTAL
           ==================================================================== */}
-      {currentUser.role === 'student' && studentDashboard && (
+      {currentUser.role === 'student' && (
         <>
           {/* Student Welcome Banner */}
           <div className="glass-card mb-6 bg-gradient-to-r from-blue-50 to-white border border-blue-200">
@@ -1641,7 +1642,7 @@ export default function CollegeLibraryApp() {
                   Welcome, <span className="text-blue-600">{currentUser.name}</span>
                 </h2>
                 <p className="text-sm text-slate-600 mt-1">
-                  College ID: <span className="mono font-semibold text-blue-700">{currentUser.college_id}</span> &bull; Department: <strong>{currentUser.department}</strong>
+                  College ID: <span className="mono font-semibold text-blue-700">{currentUser.college_id}</span> &bull; Department: <strong>{currentUser.department || 'General'}</strong>
                 </p>
               </div>
 
@@ -1649,14 +1650,14 @@ export default function CollegeLibraryApp() {
                 <div className="bg-white border border-slate-200 p-3 rounded-lg shadow-sm text-center min-w-[120px]">
                   <div className="text-xs uppercase text-slate-500 font-semibold">Borrowed Books</div>
                   <div className="text-2xl font-bold text-slate-900">
-                    {studentDashboard.usedQuota} / {currentUser.max_books || 3}
+                    {studentDashboard?.activeLoans?.length || 0} / {currentUser.max_books || 3}
                   </div>
                 </div>
 
                 <div className="bg-white border border-slate-200 p-3 rounded-lg shadow-sm text-center min-w-[120px]">
-                  <div className="text-xs uppercase text-slate-500 font-semibold">Unpaid Fines</div>
-                  <div className={`text-2xl font-bold ${studentDashboard.totalUnpaidFines > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                    ₹{studentDashboard.totalUnpaidFines.toFixed(2)}
+                  <div className="text-xs uppercase text-slate-500 font-semibold">Total Dues</div>
+                  <div className={`text-2xl font-bold ${(Number(studentDashboard?.totalDues) || 0) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    ₹{(Number(studentDashboard?.totalDues) || 0).toFixed(2)}
                   </div>
                 </div>
               </div>
@@ -1671,18 +1672,18 @@ export default function CollegeLibraryApp() {
               id="student-tab-loans"
             >
               <BookOpen size={16} />
-              My Borrowed Books
-              <span className="tab-badge">{studentDashboard.activeLoans.length}</span>
+              Borrowed Books
+              <span className="tab-badge">{(studentDashboard?.activeLoans || []).length}</span>
             </button>
 
             <button 
-              className={`nav-tab ${studentTab === 'my-fines' ? 'active' : ''}`}
-              onClick={() => setStudentTab('my-fines')}
-              id="student-tab-fines"
+              className={`nav-tab ${studentTab === 'history' ? 'active' : ''}`}
+              onClick={() => setStudentTab('history')}
+              id="student-tab-history"
             >
-              <span className="font-bold text-sm">₹</span>
-              My Fines
-              <span className="tab-badge">{studentDashboard.fines.length}</span>
+              <Clock size={16} />
+              Book History
+              <span className="tab-badge">{(studentDashboard?.history || []).length}</span>
             </button>
 
             <button 
@@ -1692,24 +1693,24 @@ export default function CollegeLibraryApp() {
             >
               <Search size={16} />
               Browse Books
-              <span className="tab-badge">{catalog.length}</span>
+              <span className="tab-badge">{(catalog || []).length}</span>
             </button>
           </nav>
 
-          {/* STUDENT TAB 1: MY BORROWED BOOKS */}
+          {/* TAB 1: CURRENT BORROWED BOOKS */}
           {studentTab === 'my-loans' && (
             <section className="glass-card">
               <div className="card-header">
                 <div className="card-title-group">
-                  <h2><Clock size={20} className="text-blue-600" /> My Borrowed Books</h2>
-                  <p className="card-subtitle">Keep track of due dates to return books on time and avoid late fines (₹10/day).</p>
+                  <h2><BookOpen size={20} className="text-blue-600" /> Current Borrowed Books</h2>
+                  <p className="card-subtitle">Showing book details, due dates, remaining days, and pending dues.</p>
                 </div>
               </div>
 
-              {studentDashboard.activeLoans.length === 0 ? (
+              {(studentDashboard?.activeLoans || []).length === 0 ? (
                 <div className="empty-state">
                   <BookOpen className="empty-state-icon" />
-                  <h3 className="text-lg font-bold text-slate-800">You have no borrowed books right now</h3>
+                  <h3 className="text-lg font-bold text-slate-800">No books borrowed right now</h3>
                   <p className="text-sm text-slate-500 mt-1">
                     Visit the library to borrow books using your College ID <span className="text-blue-600 mono font-bold">{currentUser.college_id}</span>.
                   </p>
@@ -1719,33 +1720,42 @@ export default function CollegeLibraryApp() {
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Copy ID</th>
                         <th>Book Title</th>
-                        <th>Author</th>
-                        <th>Department</th>
-                        <th>Issue Date</th>
+                        <th>Copy ID</th>
                         <th>Due Date</th>
-                        <th>Status</th>
+                        <th>Days Remaining</th>
+                        <th>Dues (₹)</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {studentDashboard.activeLoans.map((loan: any) => (
+                      {(studentDashboard?.activeLoans || []).map((loan: any) => (
                         <tr key={loan.issue_id}>
+                          <td className="font-semibold text-slate-900">
+                            {loan.title || loan.book_title}
+                            <span className="block text-xs text-slate-500 font-normal">{loan.author} &bull; {loan.department}</span>
+                          </td>
                           <td className="mono text-blue-600 font-bold">{loan.accession_no}</td>
-                          <td className="font-semibold text-slate-900">{loan.title}</td>
-                          <td className="text-slate-600">{loan.author}</td>
-                          <td><span className="badge badge-faculty">{loan.department}</span></td>
-                          <td className="mono">{loan.issue_date}</td>
-                          <td className="mono font-semibold">{loan.due_date}</td>
+                          <td className="mono font-semibold text-slate-800">{loan.due_date}</td>
                           <td>
-                            {loan.days_overdue > 0 ? (
+                            {loan.days_remaining > 0 ? (
+                              <span className="badge badge-available">
+                                <CheckCircle2 size={12} /> {loan.days_remaining} {loan.days_remaining === 1 ? 'day' : 'days'} left
+                              </span>
+                            ) : loan.days_remaining === 0 ? (
                               <span className="badge badge-overdue">
-                                <AlertTriangle size={12} /> {loan.days_overdue} days Overdue (₹{loan.days_overdue * 10})
+                                <Clock size={12} /> Due today
                               </span>
                             ) : (
-                              <span className="badge badge-available">
-                                <CheckCircle2 size={12} /> On Track
+                              <span className="badge badge-overdue">
+                                <AlertTriangle size={12} /> {loan.overdue_days} {loan.overdue_days === 1 ? 'day' : 'days'} overdue
                               </span>
+                            )}
+                          </td>
+                          <td>
+                            {(Number(loan.dues) || 0) > 0 ? (
+                              <span className="mono font-bold text-rose-600">₹{(Number(loan.dues) || 0).toFixed(2)}</span>
+                            ) : (
+                              <span className="mono text-emerald-600 font-semibold">₹0.00</span>
                             )}
                           </td>
                         </tr>
@@ -1757,53 +1767,57 @@ export default function CollegeLibraryApp() {
             </section>
           )}
 
-          {/* STUDENT TAB 2: MY FINES */}
-          {studentTab === 'my-fines' && (
+          {/* TAB 2: BOOK BORROWING HISTORY */}
+          {studentTab === 'history' && (
             <section className="glass-card">
               <div className="card-header">
                 <div className="card-title-group">
-                  <h2>
-                    <span className="text-blue-600 font-bold text-xl mr-1">₹</span> 
-                    My Fines
-                  </h2>
-                  <p className="card-subtitle">Late fines assessed at ₹10 per overdue day on late returned books.</p>
+                  <h2><Clock size={20} className="text-blue-600" /> Book Borrowing History</h2>
+                  <p className="card-subtitle">Complete record of books you previously borrowed and returned.</p>
                 </div>
               </div>
 
-              {studentDashboard.fines.length === 0 ? (
+              {(studentDashboard?.history || []).length === 0 ? (
                 <div className="empty-state">
-                  <CheckCircle2 className="empty-state-icon text-emerald-600" />
-                  <h3 className="text-lg font-bold text-slate-800">No Fines</h3>
-                  <p className="text-sm text-slate-500 mt-1">You have no unpaid or past library fines.</p>
+                  <Clock className="empty-state-icon" />
+                  <h3 className="text-lg font-bold text-slate-800">No Past Borrowing History</h3>
+                  <p className="text-sm text-slate-500 mt-1">Returned books will appear here with return dates and clearance details.</p>
                 </div>
               ) : (
                 <div className="table-container">
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Fine #</th>
                         <th>Book Title</th>
                         <th>Copy ID</th>
-                        <th>Days Late</th>
-                        <th>Amount (₹)</th>
-                        <th>Status</th>
-                        <th>Date</th>
+                        <th>Borrowed Date</th>
+                        <th>Due Date</th>
+                        <th>Returned On</th>
+                        <th>Dues / Fine Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {studentDashboard.fines.map((f: any) => (
-                        <tr key={f.fine_id}>
-                          <td className="mono">#{f.fine_id}</td>
-                          <td className="font-semibold text-slate-900">{f.title}</td>
-                          <td className="mono text-blue-600">{f.accession_no}</td>
-                          <td className="mono">{f.days_overdue} days</td>
-                          <td className="mono font-bold text-rose-600">₹{f.amount.toFixed(2)}</td>
-                          <td>
-                            <span className={f.status === 'unpaid' ? 'badge badge-overdue' : 'badge badge-available'}>
-                              {f.status.toUpperCase()}
-                            </span>
+                      {(studentDashboard?.history || []).map((item: any) => (
+                        <tr key={item.issue_id}>
+                          <td className="font-semibold text-slate-900">
+                            {item.title}
+                            <span className="block text-xs text-slate-500 font-normal">{item.author} &bull; {item.department}</span>
                           </td>
-                          <td className="mono text-slate-500 text-xs">{f.assessed_date}</td>
+                          <td className="mono text-blue-600">{item.accession_no}</td>
+                          <td className="mono">{item.issue_date}</td>
+                          <td className="mono">{item.due_date}</td>
+                          <td className="mono font-semibold text-emerald-700">{item.return_date}</td>
+                          <td>
+                            {(Number(item.fine_amount) || 0) > 0 ? (
+                              <span className="badge badge-overdue">
+                                ₹{(Number(item.fine_amount) || 0).toFixed(2)} ({item.fine_status})
+                              </span>
+                            ) : (
+                              <span className="badge badge-available">
+                                <CheckCircle2 size={12} /> Returned on time (₹0.00)
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

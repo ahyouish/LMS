@@ -675,15 +675,17 @@ export async function getStudentDashboard(memberId: number) {
     SELECT 
       bi.issue_id,
       bi.accession_no,
-      bi.issue_date,
-      bi.due_date,
-      bi.return_date,
-      b.title as book_title,
+      TO_CHAR(bi.issue_date, 'YYYY-MM-DD') as issue_date,
+      TO_CHAR(bi.due_date, 'YYYY-MM-DD') as due_date,
+      TO_CHAR(bi.return_date, 'YYYY-MM-DD') as return_date,
+      b.title,
       b.author,
       b.department,
-      f.amount as fine_amount,
-      f.status as fine_status,
-      (CURRENT_DATE - bi.due_date)::int as days_past_due
+      (bi.due_date - CURRENT_DATE)::int as days_remaining_raw,
+      GREATEST(0, (CURRENT_DATE - bi.due_date)::int) as days_overdue,
+      f.fine_id,
+      COALESCE(f.amount, 0)::numeric as fine_amount,
+      COALESCE(f.status, 'unpaid') as fine_status
     FROM book_issues bi
     JOIN book_copies bc ON bi.accession_no = bc.accession_no
     JOIN books b ON bc.book_id = b.book_id
@@ -692,10 +694,58 @@ export async function getStudentDashboard(memberId: number) {
     ORDER BY bi.issue_date DESC
   `, [memberId]);
 
-  const activeLoans = issuesRes.rows.filter(i => !i.return_date);
-  const totalUnpaidFines = issuesRes.rows
-    .filter(i => i.fine_status === 'unpaid')
-    .reduce((sum, i) => sum + (Number(i.fine_amount) || 0), 0);
+  // Active currently borrowed books
+  const activeLoans = issuesRes.rows
+    .filter(i => !i.return_date)
+    .map(i => {
+      const daysRemaining = Number(i.days_remaining_raw) || 0;
+      const isOverdue = daysRemaining < 0;
+      const overdueDays = isOverdue ? Math.abs(daysRemaining) : 0;
+      const currentDues = isOverdue ? overdueDays * 10.00 : 0.00;
+
+      return {
+        issue_id: i.issue_id,
+        accession_no: i.accession_no,
+        title: i.title,
+        author: i.author,
+        department: i.department,
+        issue_date: i.issue_date,
+        due_date: i.due_date,
+        days_remaining: daysRemaining,
+        is_overdue: isOverdue,
+        overdue_days: overdueDays,
+        dues: currentDues
+      };
+    });
+
+  // History: past returned books
+  const history = issuesRes.rows
+    .filter(i => !!i.return_date)
+    .map(i => ({
+      issue_id: i.issue_id,
+      accession_no: i.accession_no,
+      title: i.title,
+      author: i.author,
+      department: i.department,
+      issue_date: i.issue_date,
+      due_date: i.due_date,
+      return_date: i.return_date,
+      fine_amount: Number(i.fine_amount) || 0,
+      fine_status: i.fine_status
+    }));
+
+  // Total unpaid assessed fines
+  const unpaidAssessedRes = await p.query(`
+    SELECT COALESCE(SUM(f.amount), 0)::numeric as total
+    FROM fines f
+    JOIN book_issues bi ON f.issue_id = bi.issue_id
+    WHERE bi.member_id = $1 AND f.status = 'unpaid'
+  `, [memberId]);
+  const unpaidAssessed = Number(unpaidAssessedRes.rows[0]?.total) || 0;
+
+  // Total active overdue pending dues
+  const activePendingDues = activeLoans.reduce((sum, loan) => sum + loan.dues, 0);
+  const totalDues = unpaidAssessed + activePendingDues;
 
   return {
     member: {
@@ -708,7 +758,8 @@ export async function getStudentDashboard(memberId: number) {
       status: member.status
     },
     activeLoans,
-    borrowingHistory: issuesRes.rows,
-    totalUnpaidFines
+    history,
+    totalDues,
+    usedQuota: activeLoans.length
   };
 }
