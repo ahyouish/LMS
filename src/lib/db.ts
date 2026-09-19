@@ -2,7 +2,9 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import fs from 'fs';
 
-const DB_PATH = path.join(process.cwd(), 'library_lms.db');
+const DB_PATH = process.env.VERCEL
+  ? path.join('/tmp', 'library_lms.db')
+  : path.join(process.cwd(), 'library_lms.db');
 
 let _db: DatabaseSync | null = null;
 

@@ -113,7 +113,7 @@ interface UserSession {
   max_books?: number;
 }
 
-export const ACADEMIC_DEPARTMENTS = [
+const ACADEMIC_DEPARTMENTS = [
   'Computer Science (CSE)',
   'Artificial Intelligence (AI)',
   'Electronics and Communication (ECE)',
