@@ -13,7 +13,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const dashboard = getStudentDashboard(Number(memberId));
+    const dashboard = await getStudentDashboard(Number(memberId));
     if (!dashboard) {
       return NextResponse.json(
         { success: false, error: 'Student member not found.' },

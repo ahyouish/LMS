@@ -13,7 +13,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = registerStudent({
+    const result = await registerStudent({
       name,
       collegeId,
       email,

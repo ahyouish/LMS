@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getMembersWithStats, getDb, deleteMember } from '@/lib/db';
+import { getMembersWithStats, updateMemberStatus, deleteMember } from '@/lib/db';
 
 export async function GET() {
   try {
-    const members = getMembersWithStats();
+    const members = await getMembersWithStats();
     return NextResponse.json({ success: true, data: members });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -22,10 +22,7 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const db = getDb();
-    db.prepare('UPDATE Members SET status = ? WHERE member_id = ?').run(status, Number(memberId));
-
-    const updated = db.prepare('SELECT * FROM Members WHERE member_id = ?').get(Number(memberId));
+    const updated = await updateMemberStatus(Number(memberId), status);
     return NextResponse.json({ success: true, data: updated });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -44,7 +41,7 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const result = deleteMember(Number(memberId));
+    const result = await deleteMember(Number(memberId));
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 });
     }

@@ -13,7 +13,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = returnBookTransaction(
+    const result = await returnBookTransaction(
       String(accessionNo).trim(),
       finePerDay !== undefined ? Number(finePerDay) : 2.00
     );

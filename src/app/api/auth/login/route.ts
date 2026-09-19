@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const authResult = authenticateUser(identifier, password);
+    const authResult = await authenticateUser(identifier, password);
 
     if (!authResult.success) {
       return NextResponse.json(

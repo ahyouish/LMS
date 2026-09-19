@@ -13,7 +13,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = issueBookTransaction(
+    const result = await issueBookTransaction(
       String(accessionNo).trim(),
       Number(memberId),
       loanDays ? Number(loanDays) : 14

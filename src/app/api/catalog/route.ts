@@ -3,7 +3,7 @@ import { getCatalogWithCopies, addBookWithCopies, deleteBook } from '@/lib/db';
 
 export async function GET() {
   try {
-    const catalog = getCatalogWithCopies();
+    const catalog = await getCatalogWithCopies();
     return NextResponse.json({ success: true, data: catalog });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = addBookWithCopies({
+    const result = await addBookWithCopies({
       title,
       author,
       isbn,
@@ -50,7 +50,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, error: 'bookId parameter is required.' }, { status: 400 });
     }
 
-    const result = deleteBook(Number(bookId));
+    const result = await deleteBook(Number(bookId));
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 });
     }
