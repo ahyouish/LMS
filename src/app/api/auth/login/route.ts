@@ -4,16 +4,17 @@ import { authenticateUser } from '@/lib/db';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password } = body;
+    const identifier = (body.identifier || body.email || '').trim();
+    const password = (body.password || '').trim();
 
-    if (!email || !password) {
+    if (!identifier || !password) {
       return NextResponse.json(
-        { success: false, error: 'Email and password are required.' },
+        { success: false, error: 'Email / College ID and password are required.' },
         { status: 400 }
       );
     }
 
-    const authResult = authenticateUser(email, password);
+    const authResult = authenticateUser(identifier, password);
 
     if (!authResult.success) {
       return NextResponse.json(

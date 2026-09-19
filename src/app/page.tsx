@@ -265,7 +265,7 @@ export default function CollegeLibraryApp() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword })
+        body: JSON.stringify({ email: loginEmail.trim(), password: loginPassword.trim() })
       });
       const data = await res.json();
 
@@ -565,13 +565,13 @@ export default function CollegeLibraryApp() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="form-label" htmlFor="login-email">
-                <Mail size={14} className="inline mr-1 text-blue-600" /> Email Address
+                <Mail size={14} className="inline mr-1 text-blue-600" /> Email Address or College ID
               </label>
               <input
                 id="login-email"
-                type="email"
+                type="text"
                 className="form-control"
-                placeholder="name@college.edu"
+                placeholder="name@college.edu or College ID (e.g. STU101)"
                 value={loginEmail}
                 onChange={e => setLoginEmail(e.target.value)}
                 required

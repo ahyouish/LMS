@@ -10,43 +10,16 @@ let _db: DatabaseSync | null = null;
 
 export function getDb(): DatabaseSync {
   if (!_db) {
-    const isNew = !fs.existsSync(DB_PATH);
     _db = new DatabaseSync(DB_PATH);
     _db.exec('PRAGMA foreign_keys = ON;');
-    
-    if (isNew) {
-      initDatabase(_db);
-    } else {
-      // Ensure tables exist and check for password column
-      try {
-        const tableCheck = _db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='Members'").get();
-        if (!tableCheck) {
-          initDatabase(_db);
-        } else {
-          // Check if password column exists in Members
-          const cols = _db.prepare("PRAGMA table_info(Members)").all() as any[];
-          const hasPassword = cols.some(c => c.name === 'password');
-          if (!hasPassword) {
-            initDatabase(_db);
-          }
-        }
-      } catch {
-        initDatabase(_db);
-      }
-    }
+    initDatabase(_db);
   }
   return _db;
 }
 
 export function initDatabase(db: DatabaseSync) {
   db.exec(`
-    DROP TABLE IF EXISTS Fines;
-    DROP TABLE IF EXISTS Book_Issues;
-    DROP TABLE IF EXISTS Book_Copies;
-    DROP TABLE IF EXISTS Members;
-    DROP TABLE IF EXISTS Books;
-
-    CREATE TABLE Books (
+    CREATE TABLE IF NOT EXISTS Books (
       book_id     INTEGER PRIMARY KEY AUTOINCREMENT,
       isbn        TEXT NOT NULL UNIQUE,
       title       TEXT NOT NULL,
@@ -55,7 +28,7 @@ export function initDatabase(db: DatabaseSync) {
       created_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE Book_Copies (
+    CREATE TABLE IF NOT EXISTS Book_Copies (
       accession_no   TEXT PRIMARY KEY,
       book_id        INTEGER NOT NULL,
       status         TEXT NOT NULL CHECK(status IN ('available', 'issued', 'lost')) DEFAULT 'available',
@@ -63,7 +36,7 @@ export function initDatabase(db: DatabaseSync) {
       FOREIGN KEY (book_id) REFERENCES Books(book_id) ON UPDATE CASCADE ON DELETE RESTRICT
     );
 
-    CREATE TABLE Members (
+    CREATE TABLE IF NOT EXISTS Members (
       member_id    INTEGER PRIMARY KEY AUTOINCREMENT,
       college_id   TEXT NOT NULL UNIQUE,
       name         TEXT NOT NULL,
@@ -76,7 +49,7 @@ export function initDatabase(db: DatabaseSync) {
       created_at   TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE Book_Issues (
+    CREATE TABLE IF NOT EXISTS Book_Issues (
       issue_id      INTEGER PRIMARY KEY AUTOINCREMENT,
       accession_no  TEXT NOT NULL,
       member_id     INTEGER NOT NULL,
@@ -89,7 +62,7 @@ export function initDatabase(db: DatabaseSync) {
       CHECK (return_date IS NULL OR return_date >= issue_date)
     );
 
-    CREATE TABLE Fines (
+    CREATE TABLE IF NOT EXISTS Fines (
       fine_id       INTEGER PRIMARY KEY AUTOINCREMENT,
       issue_id      INTEGER NOT NULL UNIQUE,
       days_overdue  INTEGER NOT NULL CHECK(days_overdue > 0),
@@ -262,12 +235,15 @@ export function deleteMember(memberId: number) {
 // ----------------------------------------------------------------------------
 // Authentication & Registration Logic
 // ----------------------------------------------------------------------------
-export function authenticateUser(email: string, password: string) {
-  const normalizedEmail = email.trim().toLowerCase();
+export function authenticateUser(identifier: string, password: string) {
+  const normalized = (identifier || '').trim();
+  const normalizedLower = normalized.toLowerCase();
+  const normalizedUpper = normalized.toUpperCase();
+  const trimmedPassword = (password || '').trim();
   
   // 1. Check if Admin / Librarian (admin@gmail.com)
-  if (normalizedEmail === 'admin@gmail.com') {
-    if (password === '123456') {
+  if (normalizedLower === 'admin@gmail.com') {
+    if (trimmedPassword === '123456') {
       return {
         success: true,
         user: {
@@ -285,16 +261,26 @@ export function authenticateUser(email: string, password: string) {
     }
   }
 
-  // 2. Check Member Accounts (Students & Faculty)
+  // 2. Check Member Accounts (Students & Faculty) by Email OR College ID
   const db = getDb();
-  const member = db.prepare('SELECT * FROM Members WHERE LOWER(email) = ?').get(normalizedEmail) as any;
+  const member = db.prepare(`
+    SELECT * FROM Members 
+    WHERE LOWER(email) = ? OR UPPER(college_id) = ?
+  `).get(normalizedLower, normalizedUpper) as any;
 
   if (!member) {
-    return { success: false, error: 'No patron account registered with this email address.' };
+    return { 
+      success: false, 
+      error: `No student account found with "${normalized}". Please check your Email or College ID, or ask the librarian to register your account.` 
+    };
   }
 
-  if (member.password !== password) {
+  if (member.password !== trimmedPassword) {
     return { success: false, error: 'Incorrect password for this student account.' };
+  }
+
+  if (member.status === 'blocked') {
+    return { success: false, error: 'This student account is currently blocked. Please contact the librarian.' };
   }
 
   return {
