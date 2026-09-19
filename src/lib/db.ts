@@ -4,9 +4,19 @@ let pool: Pool | null = null;
 
 export function getPgPool(): Pool {
   if (!pool) {
-    const connectionString =
+    let connectionString =
       process.env.DATABASE_URL ||
-      'postgresql://postgres:We746%25%26%2Bn3tpqiP@db.ojngimczdromplirofdq.supabase.co:5432/postgres';
+      'postgresql://postgres.ojngimczdromplirofdq:We746%25%26%2Bn3tpqiP@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres';
+
+    // Vercel / AWS Lambda functions are IPv4-only.
+    // Direct domain db.ojngimczdromplirofdq.supabase.co is IPv6-only and causes getaddrinfo ENOTFOUND.
+    // Automatically route through the IPv4 Supabase Connection Pooler:
+    if (connectionString.includes('db.ojngimczdromplirofdq.supabase.co')) {
+      connectionString = connectionString
+        .replace('db.ojngimczdromplirofdq.supabase.co:5432', 'aws-0-ap-southeast-1.pooler.supabase.com:6543')
+        .replace('db.ojngimczdromplirofdq.supabase.co', 'aws-0-ap-southeast-1.pooler.supabase.com:6543')
+        .replace('postgres:', 'postgres.ojngimczdromplirofdq:');
+    }
 
     pool = new Pool({
       connectionString,
